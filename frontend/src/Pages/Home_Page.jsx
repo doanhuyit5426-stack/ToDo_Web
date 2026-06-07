@@ -7,28 +7,43 @@ import TaskListPagination from '../components/TaskListPagination'
 import DateTimeFilter from '../components/DateTimeFilter'
 import Footer from '../components/Footer'
 import { toast } from 'sonner'
-import axios from 'axios'
+import api from '@/lib/axios'
+import { visibleTaskLisk } from '@/lib/data'
 
 const Home_Page = () => {
   const [taskBuffer, setTaskBuffer] = useState([]);
   const [filter, setFilter] = useState("all");
-  const [activeTaskCount,setActiveTaskCount] = useState([0]);
-  const [completeTaskCount,setCompleteTaskCount] = useState([0]);
+  const [activeTaskCount, setActiveTaskCount] = useState(0);
+  const [completeTaskCount, setCompleteCount] = useState(0);
+  const [dateFilter, setDateFilter] = useState("all");
+  const [page , setPage] = useState(1); 
+
+  useEffect(() => {
+    setPage(1);
+  }, [dateFilter, filter]);
+
   useEffect(() => {
     fetchTasks();
-  }, []);
+  }, [dateFilter]);
 
   const fetchTasks = async () => {
     try {
-      const res = await axios.get("http://localhost:5001/api/tasks");
+      const res = await api.get("/tasks", {
+        params: { dateRange: dateFilter }
+      });
       setTaskBuffer(res.data.tasks || []);
       setActiveTaskCount(res.data.activeCount || 0); 
-    setCompleteTaskCount(res.data.completeCount || 0);
+      setCompleteCount(res.data.completeCount || 0);
     } catch (error) {
       console.error("Lỗi khi truy suất task", error);
       toast.error("Không thể kết nối đến máy chủ API!"); 
     }
   };
+
+  const handleTaskChanged = () => {
+    fetchTasks();
+  }
+
   const completedTasksCount = taskBuffer.filter(t => t.status === "completed").length;
   const activeTasksCount = taskBuffer.filter(t => t.status === "active").length;
   const filteredTasks = taskBuffer.filter(task => {
@@ -36,6 +51,25 @@ const Home_Page = () => {
     if (filter === "completed") return task.status === "completed";
     return true;
   });
+  const itemsPerPage = Number(visibleTaskLisk) || 5;
+  const startIndex = (page - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const visibleTasks = filteredTasks.slice(startIndex, endIndex);
+  const totalPages = Math.ceil(filteredTasks.length / itemsPerPage);
+
+  const handleNext = () => {
+    if (page < totalPages){
+      setPage((prev) => prev + 1);
+    }
+  }
+  const handlePrev = () => {
+    if (page > 1){
+      setPage((prev) => prev - 1);
+    }
+  }
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+  }
 
   return (
     <div className="w-full min-h-screen bg-gradient-background pt-8">
@@ -45,27 +79,37 @@ const Home_Page = () => {
           {/* Header */}
           <Header />
           
-          {/* Khu vực thêm Task (Truyền thêm hàm fetchTasks để sau khi thêm xong tự động load lại danh sách) */}
-          <AddTask onTaskAdded={fetchTasks} />
+          {/* Khu vực thêm Task */}
+          <AddTask handleNewTask={handleTaskChanged} />
           
-          {/* Thống kê & Bộ lọc (Truyền data thật từ API vào) */}
+          {/* Thống kê & Bộ lọc */}
           <StatsAndFilter 
             completedTasksCount={completeTaskCount}
             activeTasksCount={activeTaskCount}
-            filter ={filter}
+            filter={filter}
             setFilter={setFilter}
           />
           
-          {/* Danh sách công việc (Truyền mảng tasks đã được lọc động) */}
-          <TaskList filteredTasks={filteredTasks} filter={filter}/>
+          {/* Danh sách công việc */}
+          <TaskList 
+            filteredTasks={visibleTasks} 
+            filter={filter} 
+            handleTaskChanged={handleTaskChanged}
+          />
           
           {/* Phân trang & Ngày tháng */}
           <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
-            <TaskListPagination />
-            <DateTimeFilter />
+            <TaskListPagination 
+              handleNext={handleNext} 
+              handlePrev={handlePrev} 
+              handlePageChange={handlePageChange} 
+              page={page} 
+              totalPages={totalPages}
+            />
+            <DateTimeFilter dateFilter={dateFilter} setDateFilter={setDateFilter} />          
           </div>
           
-          {/* Footer (Truyền số lượng thật để hiển thị câu cổ vũ thông minh) */}
+          {/* Footer */}
           <Footer 
             completedTasksCount={completedTasksCount}
             activeTasksCount={activeTasksCount}
@@ -77,4 +121,4 @@ const Home_Page = () => {
   )
 }
 
-export default Home_Page
+export default Home_Page;

@@ -1,16 +1,45 @@
 import Task from '../models/Task.js';
 
 export const getTasks =async (req, res) => {
-    try{
+    try {
+        const { dateRange } = req.query;
+        let matchCondition = {}; 
+        if (dateRange && dateRange !== 'all') {
+            const now = new Date();
+            let startOfDate;
+
+            if (dateRange === 'today') {
+                startOfDate = new Date(now.setHours(0, 0, 0, 0));
+            } else if (dateRange === 'week') {
+                const day = now.getDay();
+                const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+                startOfDate = new Date(now.setDate(diff));
+                startOfDate.setHours(0, 0, 0, 0);
+            } else if (dateRange === 'month') {
+                startOfDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            }
+            if (startOfDate) {
+                matchCondition.createdAt = { $gte: startOfDate };
+            }
+        }
         const result = await Task.aggregate([
             {
                 $facet: {
-                    tasks : [{$sort: {createdAt:-1}}],
-                    activeCount: [{$match:{status:"active"}},{$count:"count"}],
-                    completeCount: [{$match:{status:"complete"}},{$count:"count"}],
+                    tasks: [
+                        { $match: matchCondition }, 
+                        { $sort: { createdAt: -1 } }
+                    ],
+                    activeCount: [
+                        { $match: { ...matchCondition, status: "active" } },
+                        { $count: "count" }
+                    ],
+                    completeCount: [
+                        { $match: { ...matchCondition, status: "completed" } },
+                        { $count: "count" }
+                    ],
                 }
             }
-        ])
+        ]);
         const tasks = result[0].tasks;
         const activeCount = result[0].activeCount[0]?.count||0;
         const completeCount = result[0].completeCount[0]?.count||0;
@@ -41,7 +70,7 @@ export const updateTask = async (req, res) => {
     try {
         const { id } = req.params;
         const { title, status, completedAt } = req.body;
-        const updatedTask = await Task.findByIdAndUpdate(id, { title, status, completedAt }, { new: true });
+        const updatedTask = await Task.findByIdAndUpdate(id, { title, status, completedAt }, { returnDocument: 'after' });
         res.status(200).json(updatedTask);
     } catch (error) {
         res.status(500).json({ message: "Error updating task" });

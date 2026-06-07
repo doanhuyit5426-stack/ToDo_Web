@@ -3,3 +3,5 @@ export const FilterType = {
     active: 'Đang làm',
     completed: 'Hoàn thành'
 };
+
+export const visibleTaskLisk = 4; 
